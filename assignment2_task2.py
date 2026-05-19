@@ -5,64 +5,120 @@ import numpy as np
 import itertools
 import csv
 
+# The datasets worked with are downloaded from the GitHub link
+# given in the assignment and placed in the same repository folder.
+# Example path: datasets/nltcs/nltcs.train.data
+def load_dataset(file_name):
+    with open(file_name, "r") as file:
+        reader = csv.reader(file, delimiter=",")
+        dataset = np.array(list(reader)).astype(float)
+    return dataset
+
 class BinaryCLT:
     def __init__(self, data, root=None, alpha=0.01):
         self.data = np.asarray(data, dtype=float)
-        self.N, self.D = self.data.shape  # N = number of samples |D|, D = number of RVs
+        self.N, self.D = self.data.shape  # N = number of samples, D = number of RVs
         self.alpha = alpha
-        
+
         # Handle the root assignment
         if root is None:
             self.root = np.random.randint(self.D)
         else:
             self.root = root
-            
+
         # Compute Mutual Information Matrix
         M = np.zeros((self.D, self.D))
-        
+
         for i in range(self.D):
             for j in range(i + 1, self.D):
                 mi = 0.0
-                # Tichai prez all binary combinations (y,z)
+                # Go through all binary combinations (y,z)
                 for y in [0., 1.]:
                     for z in [0., 1.]:
                         # Count occurrences
                         count_joint = np.sum((self.data[:, i] == y) & (self.data[:, j] == z))
                         count_y = np.sum(self.data[:, i] == y)
                         count_z = np.sum(self.data[:, j] == z)
-                        
+
                         # Apply the exact Laplace correction formulas
                         p_yz = (self.alpha + count_joint) / (4 * self.alpha + self.N)
                         p_y = (2 * self.alpha + count_y) / (4 * self.alpha + self.N)
                         p_z = (2 * self.alpha + count_z) / (4 * self.alpha + self.N)
-                        
+
                         # Add to Mutual Information (I = sum p(y,z) * log(p(y,z) / (p(y)p(z))))
                         if p_yz > 0:  # Prevent log(0) errors
                             mi += p_yz * np.log(p_yz / (p_y * p_z))
-                
+
                 # The MI matrix is symmetric
                 M[i, j] = mi
                 M[j, i] = mi
 
         # Find MST
         mst = minimum_spanning_tree(-M)
-        
+
         # Direct the tree from the root using Breadth-First Search
-        # breadth_first_order returns the order of nodes and an array of predecessors (ei taka shtoto moga)
+        # breadth_first_order returns the order of nodes and an array of predecessors
         node_order, predecessors = breadth_first_order(mst, i_start=self.root, directed=False)
-        
-        # Format the predecessors array: scipy sets the root's parent to -9999, we need -1
+
+        # Format the predecessors array: scipy sets the root's parent to -9999, we want -1
         self.tree = predecessors.copy()
         self.tree[self.tree < 0] = -1
-        
+
         # Convert to a standard Python list of integers to match the expected output
         self.tree = self.tree.astype(int).tolist()
 
     def get_tree(self):
         return self.tree
+
     def get_log_params(self):
-        ...
+        # initialize the table
+        log_params = np.zeros((self.D, 2, 2))
+
+        for i in range(self.D):
+            parent = self.tree[i]
+
+            # case when node i is the root
+            if parent == -1:
+                for k in [0, 1]:
+                    # we only count the number of occurences for each value of k
+                    count_k = np.sum(self.data[:, i] == k)
+                    prob = (self.alpha + count_k) / (2 * self.alpha + self.N)
+
+                    # duplicate the probaility (considering the root has no parent)
+                    log_params[i, 0, k] = np.log(prob)
+                    log_params[i, 1, k] = np.log(prob)
+
+            else:
+                # for the non-root nodes, we need to consider the parent node's values
+                for j in [0, 1]:
+                    count_parent = np.sum(self.data[:, parent] == j)
+
+                    for k in [0, 1]:
+                        # count the number of occurences for each combination of parent value j and node value k
+                        count_joint = np.sum(
+                            (self.data[:, parent] == j) &
+                            (self.data[:, i] == k)
+                        )
+
+                        # formula with Laplace correction
+                        prob = (self.alpha + count_joint) / (
+                            2 * self.alpha + count_parent
+                        )
+
+                        log_params[i, j, k] = np.log(prob)
+
+        return log_params
+
     def log_prob(self, x, exhaustive: bool = False):
         ...
     def sample(self, n_samples: int):
         ...
+
+if __name__ == "__main__":
+    train_data = load_dataset("datasets/nltcs/nltcs.train.data")
+    valid_data = load_dataset("datasets/nltcs/nltcs.valid.data")
+    test_data = load_dataset("datasets/nltcs/nltcs.test.data")
+
+    model = BinaryCLT(train_data, alpha=0.01)
+
+    print(model.get_tree())
