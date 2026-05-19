@@ -61,6 +61,105 @@ class TestBinaryCLT(unittest.TestCase):
             atol=1e-12
         )
 
+    def test_log_prob_sanity_check(self):
+        # Sanity check from Task 2c: sum_x p(x) over all fully observed states must be 1.
+        data = np.array([
+            [0., 0., 0.],
+            [0., 0., 0.],
+            [0., 0., 1.],
+            [0., 1., 1.],
+            [1., 1., 1.],
+            [1., 1., 1.],
+            [1., 0., 1.],
+            [1., 0., 0.],
+        ])
+
+        model = BinaryCLT(data, root=0, alpha=0.01)
+
+        all_states = np.array(
+            list(itertools.product([0., 1.], repeat=model.D))
+        )
+
+        lp = model.log_prob(all_states, exhaustive=False)
+
+        self.assertAlmostEqual(
+            np.sum(np.exp(lp)),
+            1.0,
+            places=10
+        )
+
+    def test_log_prob_sanity_check_exhaustive(self):
+        # Same sanity check, but using exhaustive inference.
+        data = np.array([
+            [0., 0., 0.],
+            [0., 0., 0.],
+            [0., 0., 1.],
+            [0., 1., 1.],
+            [1., 1., 1.],
+            [1., 1., 1.],
+            [1., 0., 1.],
+            [1., 0., 0.],
+        ])
+
+        model = BinaryCLT(data, root=0, alpha=0.01)
+
+        all_states = np.array(
+            list(itertools.product([0., 1.], repeat=model.D))
+        )
+
+        lp = model.log_prob(all_states, exhaustive=True)
+
+        self.assertAlmostEqual(
+            np.sum(np.exp(lp)),
+            1.0,
+            places=10
+        )
+
+    def test_mpe_assignment_example(self):
+        # Test the MPE example from Task 2d in the assignment description.
+        tree = [-1, 0, 4, 4, 0]
+
+        probs = np.array([
+            [[0.3, 0.7], [0.3, 0.7]],
+            [[0.2, 0.8], [0.6, 0.4]],
+            [[0.4, 0.6], [0.1, 0.9]],
+            [[0.8, 0.2], [0.5, 0.5]],
+            [[0.9, 0.1], [0.4, 0.6]],
+        ])
+
+        rows, counts = [], []
+
+        for x in itertools.product([0, 1], repeat=5):
+            p = (
+                probs[0, 0, x[0]]
+                * probs[1, x[0], x[1]]
+                * probs[2, x[4], x[2]]
+                * probs[3, x[4], x[3]]
+                * probs[4, x[0], x[4]]
+            )
+
+            rows.append(x)
+            counts.append(round(100000 * p))
+
+        data = np.repeat(np.array(rows, dtype=float), counts, axis=0)
+
+        model = object.__new__(BinaryCLT)
+        model.data = data
+        model.N, model.D = data.shape
+        model.alpha = 0.0
+        model.tree = tree
+
+        x = np.array([
+            [np.nan, np.nan, np.nan, np.nan, np.nan],
+            [np.nan, 1., np.nan, np.nan, 0.]
+        ])
+
+        expected = np.array([
+            [1, 0, 1, 0, 1],
+            [0, 1, 1, 0, 0]
+        ])
+
+        np.testing.assert_array_equal(model.mpe(x), expected)
 
 if __name__ == "__main__":
     unittest.main()
