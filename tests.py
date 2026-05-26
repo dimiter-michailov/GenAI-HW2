@@ -148,6 +148,8 @@ class TestBinaryCLT(unittest.TestCase):
         model.N, model.D = data.shape
         model.alpha = 0.0
         model.tree = tree
+        model.root = 0
+        model.node_order = [0, 1, 4, 2, 3]
 
         x = np.array([
             [np.nan, np.nan, np.nan, np.nan, np.nan],

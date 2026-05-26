@@ -58,7 +58,8 @@ class BinaryCLT:
 
         # Direct the tree from the root using Breadth-First Search
         # breadth_first_order returns the order of nodes and an array of predecessors
-        node_order, predecessors = breadth_first_order(mst, i_start=self.root, directed=False)
+        self.node_order, predecessors = breadth_first_order(mst, i_start=self.root, directed=False)
+        self.node_order = self.node_order.astype(int).tolist()
 
         # Format the predecessors array: scipy sets the root's parent to -9999, we want -1
         self.tree = predecessors.copy()
@@ -145,31 +146,18 @@ class BinaryCLT:
 
         else:
             children = [[] for _ in range(self.D)]
-            root = None
+            root = self.root
 
             # Build child lists from the predecessor list
             for i, parent in enumerate(self.tree):
-                if parent == -1:
-                    root = i
-                else:
+                if parent != -1:
                     children[parent].append(i)
-
-            order = []
-            stack = [root]
-
-            # Build an order from root to leaves
-            while stack:
-                node = stack.pop()
-                order.append(node)
-
-                for child in children[node]:
-                    stack.append(child)
 
             for n, query in enumerate(x):
                 messages = np.zeros((self.D, 2))
 
-                # Reverse the order to start from the leaves
-                for i in reversed(order):
+                # Reverse the BFS order to start from the leaves
+                for i in reversed(self.node_order):
                     if i == root:
                         continue
 
@@ -232,32 +220,19 @@ class BinaryCLT:
         x_mpe = np.zeros(x.shape, dtype=int)
 
         children = [[] for _ in range(self.D)]
-        root = None
+        root = self.root
 
         # Build child lists from the predecessor list
         for i, parent in enumerate(self.tree):
-            if parent == -1:
-                root = i
-            else:
+            if parent != -1:
                 children[parent].append(i)
-
-        order = []
-        stack = [root]
-
-        # Build an order from root to leaves
-        while stack:
-            node = stack.pop()
-            order.append(node)
-
-            for child in children[node]:
-                stack.append(child)
 
         for n, query in enumerate(x):
             messages = np.zeros((self.D, 2))
             choices = np.zeros((self.D, 2), dtype=int)
 
             # Compute max-product messages going bottom-up
-            for i in reversed(order):
+            for i in reversed(self.node_order):
                 if i == root:
                     continue
 
@@ -312,15 +287,10 @@ class BinaryCLT:
             assignment = np.zeros(self.D, dtype=int)
             assignment[root] = root_value
 
-            stack = [root]
-
-            while stack:
-                node = stack.pop()
-
+            for node in self.node_order:
                 for child in children[node]:
                     parent_value = assignment[node]
                     assignment[child] = choices[child, parent_value]
-                    stack.append(child)
 
             x_mpe[n] = assignment
 
